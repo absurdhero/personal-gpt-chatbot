@@ -16,6 +16,7 @@ def initialize_model():
         exit(1)
 
     cuda_device = torch.device('cuda:0')
+    dtype = torch.float16
 
     tokenizer = AutoTokenizer.from_pretrained("togethercomputer/GPT-JT-6B-v1", cache_dir="D:\gpt\.cache", low_memory=True)
     #model = AutoModelForCausalLM.from_pretrained(
@@ -24,10 +25,10 @@ def initialize_model():
     #        )
     model = AutoModelForCausalLM.from_pretrained("togethercomputer/GPT-JT-6B-v1",
             cache_dir="D:\gpt\.cache",
-            torch_dtype=torch.float16,
+            torch_dtype=dtype,
             low_cpu_mem_usage=True)
 
-    model = model.to(cuda_device, dtype=torch.float16)
+    model = model.to(cuda_device, dtype=dtype)
     #pipe = pipeline('text-generation', model, tokenizer=tokenizer)
 
     #prompt = "hello computer, how are you?"
@@ -39,17 +40,20 @@ def initialize_model():
 
 class GPTShell(cmd.Cmd):
     intro = 'Welcome!'
-    prompt = '[user]: '
     debug = False
 
     temperature = 0.9
-    max_length = 512 
-    user_prefix = '[user]'
-    gpt_prefix = '[robot]'
+    max_new_tokens = 128
+    user_prefix = 'user'
+    gpt_prefix = 'robot'
     preamble = ''
     history = []
+    last_generation = ''
 
-    def __init__(self, preamble = None):
+    def __init__(self, preamble = None, username='user', botname='chatbot'):
+        self.prompt=f'[{username}]:'
+        self.user_prefix=username
+        self.gpt_prefix=botname
         super(GPTShell, self).__init__()
         if preamble:
             self.preamble = preamble
@@ -77,17 +81,19 @@ The {gpt_prefix} is very nice and empathetic.
 
     def default(self, line):
         input_line = f"{self.user_prefix}: {line}"
-        if len(input_line) >= self.max_length - 256:
-            self.max_length = min(2048, self.max_length + 256) 
-        prompt = self.preamble + self.history_as_text() + input_line
+        prompt = self.preamble + self.history_as_text() + input_line + f'\n{self.gpt_prefix}: '
         input_ids = tokenizer(prompt, return_tensors="pt").input_ids.to(cuda_device)
+        print(str(datetime.now()) + " before generation")
         gen_tokens = model.generate(input_ids,
                                     pad_token_id=tokenizer.eos_token_id,
                                     #attention_mask=input_ids['attention_mask'],
                                     do_sample=True,
                                     temperature=self.temperature,
-                                    max_length=self.max_length)
+                                    max_new_tokens=self.max_new_tokens,
+                                    use_cache=True)
+        print(str(datetime.now()) + " after generation")
         gen_text = tokenizer.batch_decode(gen_tokens)[0]
+        self.last_generation = gen_text
         response = self.extract_response(gen_text, prompt)
         print(response)
         self.history.append((input_line, response))
@@ -103,16 +109,11 @@ The {gpt_prefix} is very nice and empathetic.
     def extract_response(self, generated, prompt):
         generated = generated.removeprefix(prompt)
 
-        if self.debug:
-            print("full text response:\n" + generated)
-            return
-
         try:
-            start = generated.find(f'{self.gpt_prefix}:')  + len(self.gpt_prefix) + 1
-            end = generated.find('\n', start)
-            if end - start <= 2:
+            end = generated.find('\n')
+            if end <= 2:
                 return generated
-            return generated[start:end]
+            return generated[:end]
         except:
             return generated
             
@@ -135,12 +136,15 @@ The {gpt_prefix} is very nice and empathetic.
         except e:
             print(e)
 
-    def do_max_length(self, line):
+    def do_max_new_tokens(self, line):
         try:
-            self.max_length = int(line)
+            self.max_new_tokens = int(line)
         except e:
             print(e)
 
+    def do_print_last(self, input):
+        print(self.last_generation)
+ 
     def do_debug(self, input):
         self.debug = bool(input)
         
@@ -152,6 +156,8 @@ def entry():
     import argparse
 
     parser = argparse.ArgumentParser(description='Run the GPT-based chat bot')
+    parser.add_argument('--username', default='user', metavar='NAME', help='the name of the user which the bot will address')
+    parser.add_argument('--botname', default='chatbot', metavar='NAME', help='the bot\'s name')
     parser.add_argument('preamble', metavar='FILE',
                         help='path the preamble file')
 
@@ -162,7 +168,7 @@ def entry():
             preamble = preamble_file.read()
 
     initialize_model()
-    GPTShell(preamble).cmdloop()
+    GPTShell(preamble, args.username, args.botname).cmdloop()
 
 if __name__ == '__main__':
     entry()
