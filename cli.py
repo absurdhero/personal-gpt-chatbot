@@ -3,31 +3,20 @@ import cmd
 from datetime import datetime
 
 
-class GPTShell(cmd.Cmd):
-    intro = 'Welcome!'
-    debug_level = 0
+class ChatContext:
+    """ This class formats inputs in our chatbot format and extracts the results.
 
-    temperature = 0.9
-    max_new_tokens = 128
-    username = 'user'
-    botname = 'robot'
-    preamble = ''
+     It supports all the functions of the chatbot including history and parsing the preamble format.
+     """
+
     history = []
-    last_generation = ''
 
-    def __init__(self, model, preamble=None, username='user', botname='chatbot', enable_history=True):
-        self.model = model
-        self.prompt = f'[{username}]:'
+    def __init__(self, preamble=None, username='user', botname='chatbot'):
         self.username = username
         self.botname = botname
-        self.enable_history = enable_history
 
-        super(GPTShell, self).__init__()
-
-        if preamble:
-            self.preamble = preamble
-        else:
-            self.preamble = """This is a discussion between a {username} and a {botname}. 
+        if not preamble:
+            preamble = """This is a discussion between a {username} and a {botname}. 
 The {botname} is very nice and empathetic.
 
 {username}: Hello nice to meet you.
@@ -42,12 +31,53 @@ The {botname} is very nice and empathetic.
 {username}: I caught a cold and couldn't go out to a special dinner with my friends.
 {botname}: I'm so sorry to hear that. I hope you feel better soon. Do you want to talk about it?
 ###
-   """
-        self.preamble = self.preamble.format(username=self.username, botname=self.botname)
+        """
+        self.preamble = preamble.format(username=self.username, botname=self.botname)
+
+    def make_prompt(self, line):
+        """ create a complete prompt to send to the model """
+        input_line = f"{self.username}: {line}"
+        return self.preamble + self._history_as_text() + input_line + f'\n{self.botname}: '
+
+    def add_history(self, line, response):
+        self.history.append((line, response))
+
+    def extract_response(self, prompt, generated):
+        """ Given the original prompt and the generated output, returns the first response. """
+        generated = generated.removeprefix(prompt)
+
+        end = generated.find('###')
+        if end is None or end <= 2:
+            return generated
+        return generated[:end]
+
+    def _history_as_text(self):
+        text = ''
+        for (i, o) in self.history:
+            text += f"{self.username}: {i}\n"
+            text += f"{self.botname}: {o}\n"
+            text += '###\n'
+        return text
+
+
+class GPTShell(cmd.Cmd):
+    intro = 'Welcome!'
+    debug_level = 0
+
+    temperature = 0.9
+    max_new_tokens = 128
+    last_generation = ''
+
+    def __init__(self, model, preamble=None, username='user', botname='chatbot', enable_history=True):
+        self.chat_context = ChatContext(preamble, username, botname)
+        self.model = model
+        self.prompt = f'[{username}]:'
+        self.enable_history = enable_history
+
+        super(GPTShell, self).__init__()
 
     def default(self, line):
-        input_line = f"{self.username}: {line}"
-        prompt = self.preamble + self.history_as_text() + input_line + f'\n{self.botname}: '
+        prompt = self.chat_context.make_prompt(line)
         start = datetime.now().timestamp()
         gen_text = self.model.generate_text(prompt,
                                             temperature=self.temperature,
@@ -56,26 +86,10 @@ The {botname} is very nice and empathetic.
         if self.debug_level > 0:
             print(f'generation took {end - start:.2f} seconds')
         self.last_generation = gen_text
-        response = self._extract_response(gen_text, prompt)
+        response = self.chat_context.extract_response(prompt, gen_text)
         print(response)
         if self.enable_history:
-            self.history.append((input_line, response))
-
-    def history_as_text(self):
-        text = ''
-        for (i, o) in self.history:
-            text += f"{self.username}: {i}\n"
-            text += f"{self.botname}: {o}\n"
-            text += '###\n'
-        return text
-
-    def _extract_response(self, generated, prompt):
-        generated = generated.removeprefix(prompt)
-
-        end = generated.find('###')
-        if end is None or end <= 2:
-            return generated
-        return generated[:end]
+            self.chat_context.add_history(line, response)
 
     def do_preamble(self, _line):
         lines = []
@@ -85,11 +99,15 @@ The {botname} is very nice and empathetic.
                 lines.append(line)
             else:
                 break
-        self.preamble = '\n'.join(lines)
-        self.history = []
+        self.chat_context.preamble = '\n'.join(lines)
+        self.chat_context.history = []
         print("My preamble has been changed and history reset")
 
     def do_temperature(self, line):
+        if line == '':
+            print(f'current temperature: {self.temperature}')
+            return
+
         try:
             self.temperature = float(line)
         except ValueError as e:
