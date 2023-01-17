@@ -35,3 +35,37 @@ class Model:
         input_ids = self.tokenize(prompt)
         gen_tokens = self.generate(input_ids, temperature, max_new_tokens)
         return self.tokenizer.batch_decode(gen_tokens)[0]
+
+
+def entry():
+    """
+    Run input from stdin through the model. Terminate input by writing a single period on a new line.
+    """
+
+    import argparse
+
+    parser = argparse.ArgumentParser(description='Run the model with an input and receive an output')
+    parser.add_argument('--cache-dir', default='HOME/.cache', metavar='PATH', help='model storage location')
+    parser.add_argument('--max-new-tokens', default=256, type=int, metavar='N',
+                        help='max tokens to generate after input')
+
+    args = parser.parse_args()
+
+    model = Model(args.cache_dir)
+
+    while True:
+        print("ready for input:")
+        lines = []
+        while True:
+            line = input()
+            if line != '.':
+                lines.append(line)
+            else:
+                print("\nresult:\n")
+                break
+        print(model.generate_text('\n'.join(lines), max_new_tokens=args.max_new_tokens))
+        print('\n')
+
+
+if __name__ == '__main__':
+    entry()
