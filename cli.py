@@ -15,12 +15,15 @@ class GPTShell(cmd.Cmd):
     history = []
     last_generation = ''
 
-    def __init__(self, model, preamble=None, username='user', botname='chatbot'):
+    def __init__(self, model, preamble=None, username='user', botname='chatbot', enable_history=True):
         self.model = model
         self.prompt = f'[{username}]:'
         self.username = username
         self.botname = botname
+        self.enable_history = enable_history
+
         super(GPTShell, self).__init__()
+
         if preamble:
             self.preamble = preamble
         else:
@@ -55,7 +58,8 @@ The {botname} is very nice and empathetic.
         self.last_generation = gen_text
         response = self._extract_response(gen_text, prompt)
         print(response)
-        self.history.append((input_line, response))
+        if self.enable_history:
+            self.history.append((input_line, response))
 
     def history_as_text(self):
         text = ''
@@ -68,7 +72,7 @@ The {botname} is very nice and empathetic.
     def _extract_response(self, generated, prompt):
         generated = generated.removeprefix(prompt)
 
-        end = generated.find('\n')
+        end = generated.find('###')
         if end is None or end <= 2:
             return generated
         return generated[:end]
@@ -117,13 +121,16 @@ def entry():
     import argparse
 
     parser = argparse.ArgumentParser(description='Run the GPT-based chat bot')
+    parser.add_argument('preamble', metavar='FILE',
+                        help='path the preamble file')
     parser.add_argument('--cache-dir', default='HOME/.cache', metavar='PATH', help='model storage location')
 
     parser.add_argument('--username', default='user', metavar='NAME',
                         help='the name of the user which the bot will address')
     parser.add_argument('--botname', default='chatbot', metavar='NAME', help='the bot\'s name')
-    parser.add_argument('preamble', metavar='FILE',
-                        help='path the preamble file')
+    parser.add_argument('--no-history',
+                        help='set if you do not want the model to be given the chat history as context',
+                        action='store_true')
 
     args = parser.parse_args()
     preamble = None
@@ -133,7 +140,7 @@ def entry():
 
     import model
     model = model.Model(args.cache_dir)
-    GPTShell(model, preamble, args.username, args.botname).cmdloop()
+    GPTShell(model, preamble, args.username, args.botname, enable_history=not args.no_history).cmdloop()
 
 
 if __name__ == '__main__':
