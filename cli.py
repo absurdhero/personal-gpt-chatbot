@@ -11,34 +11,14 @@ class ChatContext:
      """
 
     history = []
+    variable_re = re.compile(r'///(\w+): *(.*)')
 
     def __init__(self, preamble, username=None, botname=None, enable_history=None):
         self.intro_message = None
         self.username = username
         self.botname = botname
         self.enable_history = enable_history
-
-        if not preamble:
-            preamble = """///INTRO: Welcome!
-This is a discussion between a {username} and a {botname}.
-The {botname} is very nice and empathetic.
-
-{username}: Hi. Who are you?
-{botname}: I'm {botname}. Nice to meet you.
-###
-{username}: How is it going today?
-{botname}: Not so bad, thank you! How about you?
-###
-{username}: I am ok, but I am a bit sad...
-{botname}: Oh? Why is that?
-###
-{username}: I caught a cold and couldn't go out to a special dinner with my friends.
-{botname}: I'm so sorry to hear that. I hope you feel better soon. Do you want to talk about it?
-###
-        """
         self.set_preamble(preamble)
-
-    variable_re = re.compile(r'///(\w+): *(.*)')
 
     def set_preamble(self, preamble):
         processed = []
@@ -58,11 +38,20 @@ The {botname} is very nice and empathetic.
             if stripped[:2] == '//':
                 continue
             processed.append(line)
+
+        # If settings were not read from the preamble, set default values.
+        if self.username is None:
+            self.username = 'user'
+        if self.botname is None:
+            self.botname = 'chatbot'
+        if self.enable_history is None:
+            self.enable_history = True
+
         self.preamble = '\n'.join(processed).format(username=self.username, botname=self.botname)
 
     def make_prompt(self, line):
         """ create a complete prompt to send to the model """
-        return f'{self.preamble}\n{self._history_as_text()}{self.username}: {line}\n{self.botname}: '
+        return f'{self.preamble}\n{self._history_as_text()}{self.username}: {line}\n{self.botname}:'
 
     def add_history(self, line, response):
         if self.enable_history:
@@ -75,7 +64,7 @@ The {botname} is very nice and empathetic.
         end = generated.find('###')
         if end is None or end <= 2:
             return generated
-        return generated[:end]
+        return generated[:end].strip()
 
     def _history_as_text(self):
         text = ''
@@ -93,11 +82,11 @@ class GPTShell(cmd.Cmd):
     max_new_tokens = 128
     last_generation = ''
 
-    def __init__(self, model, preamble=None, username=None, botname=None, enable_history=None):
+    def __init__(self, model, preamble, username=None, botname=None, enable_history=None):
         self.chat_context = ChatContext(preamble, username, botname, enable_history)
         self.model = model
         self.intro = self.chat_context.intro_message
-        self.prompt = f'[{self.chat_context.username}]:'
+        self.prompt = f'[{self.chat_context.username}]: '
 
         super(GPTShell, self).__init__()
 
@@ -127,6 +116,10 @@ class GPTShell(cmd.Cmd):
         self.chat_context.history = []
         print("My preamble has been changed and history reset")
 
+    def do_reset(self, _line):
+        self.chat_context.history = []
+        print("My chat history has been reset")
+
     def do_temperature(self, line):
         if line == '':
             print(f'current temperature: {self.temperature}')
@@ -145,6 +138,9 @@ class GPTShell(cmd.Cmd):
 
     def do_print_last(self, _line):
         print(self.last_generation)
+
+    def do_print_last_repr(self, _line):
+        print(repr(self.last_generation))
 
     def do_debug(self, input):
         if len(input) == 0:
@@ -176,10 +172,9 @@ def entry():
                         action='store_false')
 
     args = parser.parse_args()
-    preamble = None
-    if args.preamble:
-        with open(args.preamble) as preamble_file:
-            preamble = preamble_file.read()
+
+    with open(args.preamble) as preamble_file:
+        preamble = preamble_file.read()
 
     import model
     model = model.Model(args.cache_dir)
