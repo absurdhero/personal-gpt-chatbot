@@ -2,17 +2,17 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch
 
 
-class Model:
-    def __init__(self, cache_dir=None):
+class CausalModel:
+    def __init__(self, model_name="togethercomputer/GPT-JT-6B-v1", cache_dir=None):
         if not torch.cuda.is_available():
             raise RuntimeError("torch cuda support not installed. See pytorch.org for installation details.")
 
         self.device = torch.device('cuda:0')
         dtype = torch.float16
 
-        self.tokenizer = AutoTokenizer.from_pretrained("togethercomputer/GPT-JT-6B-v1", cache_dir=cache_dir,
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name, cache_dir=cache_dir,
                                                        low_memory=True)
-        model = AutoModelForCausalLM.from_pretrained("togethercomputer/GPT-JT-6B-v1",
+        model = AutoModelForCausalLM.from_pretrained(model_name,
                                                      cache_dir=cache_dir,
                                                      torch_dtype=dtype,
                                                      low_cpu_mem_usage=True)
@@ -22,16 +22,24 @@ class Model:
     def tokenize(self, prompt):
         return self.tokenizer(prompt, return_tensors="pt").input_ids.to(self.device)
 
-    def generate(self, input_ids, temperature=0.9, max_new_tokens=128):
+    def generate(self, input_ids, temperature=None, max_new_tokens=None):
+        if not temperature:
+            temperature = 0.9
+        if not max_new_tokens:
+            max_new_tokens = 128
         return self.model.generate(input_ids,
                                    pad_token_id=self.tokenizer.eos_token_id,
                                    do_sample=True,
                                    temperature=temperature,
                                    max_new_tokens=max_new_tokens,
-                                   use_cache=True)
+                                   )
 
-    def generate_text(self, prompt, temperature=0.9, max_new_tokens=128):
+    def generate_text(self, prompt, temperature=None, max_new_tokens=None):
         """ The whole flow. Reads a prompt and outputs generated text. """
+        if not temperature:
+            temperature = 0.9
+        if not max_new_tokens:
+            max_new_tokens = 128
         input_ids = self.tokenize(prompt)
         gen_tokens = self.generate(input_ids, temperature, max_new_tokens)
         return self.tokenizer.batch_decode(gen_tokens)[0]
@@ -46,12 +54,13 @@ def entry():
 
     parser = argparse.ArgumentParser(description='Run the model with an input and receive an output')
     parser.add_argument('--cache-dir', default='HOME/.cache', metavar='PATH', help='model storage location')
-    parser.add_argument('--max-new-tokens', default=256, type=int, metavar='N',
+    parser.add_argument('--max-new-tokens', default=None, type=int, metavar='N',
                         help='max tokens to generate after input')
+    parser.add_argument('--model', default="togethercomputer/GPT-JT-6B-v1")
 
     args = parser.parse_args()
 
-    model = Model(args.cache_dir)
+    model = CausalModel(args.model, args.cache_dir)
 
     while True:
         print("ready for input:")

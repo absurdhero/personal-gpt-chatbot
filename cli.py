@@ -177,7 +177,7 @@ def entry():
         preamble = preamble_file.read()
 
     import model
-    model = model.Model(args.cache_dir)
+    model = model.CausalModel(cache_dir=args.cache_dir)
     GPTShell(model, preamble, args.username, args.botname, enable_history=args.no_history).cmdloop()
 
 
