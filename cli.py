@@ -13,7 +13,8 @@ class ChatContext:
     history = []
     variable_re = re.compile(r'///(\w+): *(.*)')
 
-    def __init__(self, preamble, username=None, botname=None, enable_history=None):
+    def __init__(self, preamble, chat_delimiter='\n', username=None, botname=None, enable_history=None):
+        self.chat_delimiter = chat_delimiter
         self.intro_message = None
         self.username = username
         self.botname = botname
@@ -61,7 +62,7 @@ class ChatContext:
         """ Given the original prompt and the generated output, returns the first response. """
         generated = generated.removeprefix(prompt)
 
-        end = generated.find('###')
+        end = generated.find(self.chat_delimiter)
         if end is None or end <= 2:
             return generated
         return generated[:end].strip()
@@ -69,9 +70,9 @@ class ChatContext:
     def _history_as_text(self):
         text = ''
         for (i, o) in self.history:
-            text += f"{self.username}: {i}\n"
-            text += f"{self.botname}: {o}\n"
-            text += '###\n'
+            text += f"[{self.username}]: {i}\n"
+            text += f"[{self.botname}]: {o}\n"
+            text += f'{self.chat_delimiter}\n'
         return text
 
 
@@ -83,7 +84,7 @@ class GPTShell(cmd.Cmd):
     last_generation = ''
 
     def __init__(self, model, preamble, username=None, botname=None, enable_history=None):
-        self.chat_context = ChatContext(preamble, username, botname, enable_history)
+        self.chat_context = ChatContext(preamble, model.chat_delimiter, username, botname, enable_history)
         self.model = model
         self.intro = self.chat_context.intro_message
         self.prompt = f'[{self.chat_context.username}]: '

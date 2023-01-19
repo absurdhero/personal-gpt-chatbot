@@ -3,6 +3,9 @@ import torch
 
 
 class CausalModel:
+
+    chat_delimiter = '###'
+
     def __init__(self, model_name="togethercomputer/GPT-JT-6B-v1", cache_dir=None):
         if not torch.cuda.is_available():
             raise RuntimeError("torch cuda support not installed. See pytorch.org for installation details.")
@@ -12,7 +15,11 @@ class CausalModel:
 
         self.tokenizer = AutoTokenizer.from_pretrained(model_name, cache_dir=cache_dir,
                                                        low_memory=True)
+
+        self.chat_delimiter_id = self.tokenize(self.chat_delimiter)[0].item()
+
         model = AutoModelForCausalLM.from_pretrained(model_name,
+                                                     eos_token_id=self.chat_delimiter_id,
                                                      cache_dir=cache_dir,
                                                      torch_dtype=dtype,
                                                      low_cpu_mem_usage=True)
