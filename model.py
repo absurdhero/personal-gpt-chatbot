@@ -1,3 +1,5 @@
+import sys
+
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch
 
@@ -70,17 +72,17 @@ def entry():
     model = CausalModel(args.model, args.cache_dir)
 
     while True:
-        print("ready for input:")
+        print("ready for input:", file=sys.stderr)
         lines = []
         while True:
             line = input()
             if line != '.':
                 lines.append(line)
             else:
-                print("\nresult:\n")
+                print("\nresult:\n", file=sys.stderr)
                 break
         print(model.generate_text('\n'.join(lines), max_new_tokens=args.max_new_tokens))
-        print('\n')
+        print('\n', file=sys.stderr)
 
 
 if __name__ == '__main__':
