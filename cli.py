@@ -83,11 +83,12 @@ class GPTShell(cmd.Cmd):
     max_new_tokens = 128
     last_generation = ''
 
-    def __init__(self, model, preamble, username=None, botname=None, enable_history=None):
-        self.chat_context = ChatContext(preamble, model.chat_delimiter, username, botname, enable_history)
+    def __init__(self, model, chat_context, save_history=None):
+        self.chat_context = chat_context
         self.model = model
         self.intro = self.chat_context.intro_message
         self.prompt = f'[{self.chat_context.username}]: '
+        self.save_history = save_history
 
         super(GPTShell, self).__init__()
 
@@ -104,6 +105,10 @@ class GPTShell(cmd.Cmd):
         response = self.chat_context.extract_response(prompt, gen_text)
         print(response)
         self.chat_context.add_history(line, response)
+
+        if self.save_history:
+            with open(self.save_history, 'w') as hist_file:
+                hist_file.write(gen_text)
 
     def do_preamble(self, _line):
         lines = []
@@ -158,6 +163,7 @@ class GPTShell(cmd.Cmd):
 
 def entry():
     import argparse
+    import os.path
 
     parser = argparse.ArgumentParser(description='Run the GPT-based chat bot')
     parser.add_argument('preamble', metavar='FILE',
@@ -167,6 +173,9 @@ def entry():
     parser.add_argument('--username', metavar='NAME',
                         help='the name of the user which the bot will address')
     parser.add_argument('--botname', metavar='NAME', help='the bot\'s name')
+    parser.add_argument('--save-history',
+                        default=None, metavar='FILE',
+                        help='set to persist chat history in a file')
     parser.add_argument('--no-history',
                         default=None,
                         help='set if you do not want the model to be given the chat history as context',
@@ -177,9 +186,25 @@ def entry():
     with open(args.preamble) as preamble_file:
         preamble = preamble_file.read()
 
+    history = ''
+    if args.save_history:
+        mode = 'r'
+        if not os.path.exists(args.save_history):
+            mode = 'x+'
+        with open(args.save_history, mode) as hist_file:
+            history = hist_file.read()
+
     import model
     model = model.CausalModel(cache_dir=args.cache_dir)
-    GPTShell(model, preamble, args.username, args.botname, enable_history=args.no_history).cmdloop()
+    chat_context = ChatContext(preamble, model.chat_delimiter, args.username, args.botname, args.no_history)
+
+    if len(history) > 0:
+        if not history.startswith(chat_context.preamble):
+            print("WARNING: preamble differs from the given history file. Ignoring the supplied preamble.")
+        # Treat the whole prior history as an updated preamble
+        chat_context.set_preamble(history)
+
+    GPTShell(model, chat_context, args.save_history).cmdloop()
 
 
 if __name__ == '__main__':
