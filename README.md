@@ -13,10 +13,9 @@ By default, it uses the very large GPT-JT-6B-v1 model which is 12GB in size.
 It requires 32GB of RAM and a minimum of 16GB of VRAM on the GPU (but 
 only tested with 24GB).
 
-Smaller causal language models may also work but have not been tested.
-
-With a smaller model and some small code changes, this chatbot could run on 
-lower powered machines with less memory and no GPU.
+Smaller causal language models also work but don't work as well.
+For machines without an NVIDIA GPU or that don't have enough memory,
+run the program with, `--model='EleutherAI/gpt-neo-1.3B'`.
 
 ### Installation
 

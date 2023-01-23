@@ -168,8 +168,8 @@ def entry():
     parser = argparse.ArgumentParser(description='Run the GPT-based chat bot')
     parser.add_argument('preamble', metavar='FILE',
                         help='path the preamble file')
-    parser.add_argument('--cache-dir', default='HOME/.cache', metavar='PATH', help='model storage location')
-
+    parser.add_argument('--cache-dir', metavar='PATH', help='model storage location. default: HOME/~.cache')
+    parser.add_argument('--model')
     parser.add_argument('--username', metavar='NAME',
                         help='the name of the user which the bot will address')
     parser.add_argument('--botname', metavar='NAME', help='the bot\'s name')
@@ -195,7 +195,7 @@ def entry():
             history = hist_file.read()
 
     import model
-    model = model.CausalModel(cache_dir=args.cache_dir)
+    model = model.CausalModel(args.model, cache_dir=args.cache_dir)
     chat_context = ChatContext(preamble, model.chat_delimiter, args.username, args.botname, args.no_history)
 
     if len(history) > 0:

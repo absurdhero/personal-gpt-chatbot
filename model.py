@@ -8,12 +8,25 @@ class CausalModel:
 
     chat_delimiter = '###'
 
-    def __init__(self, model_name="togethercomputer/GPT-JT-6B-v1", cache_dir=None):
-        if not torch.cuda.is_available():
-            raise RuntimeError("torch cuda support not installed. See pytorch.org for installation details.")
+    def __init__(self, model_name, cache_dir=None):
+        has_cuda = torch.cuda.is_available()
+        if not has_cuda:
+            print("warning: torch cuda support not installed. Running on the CPU.")
+            print("See pytorch.org for installation details.\n")
 
-        self.device = torch.device('cuda:0')
-        dtype = torch.float16
+        if has_cuda:
+            self.device = torch.device('cuda:0')
+            dtype = torch.float16
+        else:
+            self.device = 'cpu'
+            dtype = torch.float32
+
+        if not model_name:
+            if has_cuda:
+                model_name = "togethercomputer/GPT-JT-6B-v1"
+            else:
+                # Use a smaller, faster running model on CPUs
+                model_name = "EleutherAI/gpt-neo-1.3B"
 
         self.tokenizer = AutoTokenizer.from_pretrained(model_name, cache_dir=cache_dir,
                                                        low_memory=True)
@@ -62,7 +75,7 @@ def entry():
     import argparse
 
     parser = argparse.ArgumentParser(description='Run the model with an input and receive an output')
-    parser.add_argument('--cache-dir', default='HOME/.cache', metavar='PATH', help='model storage location')
+    parser.add_argument('--cache-dir', metavar='PATH', help='model storage location. default: HOME/~.cache')
     parser.add_argument('--max-new-tokens', default=None, type=int, metavar='N',
                         help='max tokens to generate after input')
     parser.add_argument('--model', default="togethercomputer/GPT-JT-6B-v1")
