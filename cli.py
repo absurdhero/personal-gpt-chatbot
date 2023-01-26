@@ -58,6 +58,16 @@ class ChatContext:
         if self.enable_history:
             self.history.append((line, response.strip()))
 
+    def set_history(self, path):
+        new_history = load_history(path)
+        if not new_history.startswith(self.preamble):
+            print("WARNING: preamble differs from the given history file. Ignoring the supplied preamble.")
+
+        if len(new_history) > 0:
+            # Treat the whole prior history as an updated preamble
+            self.set_preamble(new_history)
+            self.history = []
+
     def extract_response(self, prompt, generated):
         """ Given the original prompt and the generated output, returns the first response. """
         generated = generated.removeprefix(prompt)
@@ -107,8 +117,11 @@ class GPTShell(cmd.Cmd):
         self.chat_context.add_history(line, response)
 
         if self.save_history:
-            with open(self.save_history, 'w') as hist_file:
-                hist_file.write(gen_text)
+            self._save_history(self.last_generation)
+
+    def _save_history(self, text):
+        with open(self.save_history, 'w') as hist_file:
+            hist_file.write(text)
 
     def do_preamble(self, _line):
         lines = []
@@ -121,6 +134,18 @@ class GPTShell(cmd.Cmd):
         self.chat_context.set_preamble('\n'.join(lines))
         self.chat_context.history = []
         print("My preamble has been changed and history reset")
+
+    def do_save_history(self, line):
+        if line.strip():
+            self.save_history = line
+        self._save_history(self.last_generation)
+
+    def do_load_history(self, line):
+        if line.strip():
+            self.save_history = line
+            self.chat_context.set_history(self.save_history)
+        else:
+            print("Please specify a file to load when calling this command")
 
     def do_reset(self, _line):
         self.chat_context.history = []
@@ -163,7 +188,6 @@ class GPTShell(cmd.Cmd):
 
 def entry():
     import argparse
-    import os.path
 
     parser = argparse.ArgumentParser(description='Run the GPT-based chat bot')
     parser.add_argument('preamble', metavar='FILE',
@@ -188,23 +212,24 @@ def entry():
 
     history = ''
     if args.save_history:
-        mode = 'r'
-        if not os.path.exists(args.save_history):
-            mode = 'x+'
-        with open(args.save_history, mode) as hist_file:
-            history = hist_file.read()
+        history = load_history(args.save_history)
 
     import model
     model = model.CausalModel(args.model, cache_dir=args.cache_dir)
     chat_context = ChatContext(preamble, model.chat_delimiter, args.username, args.botname, args.no_history)
 
-    if len(history) > 0:
-        if not history.startswith(chat_context.preamble):
-            print("WARNING: preamble differs from the given history file. Ignoring the supplied preamble.")
-        # Treat the whole prior history as an updated preamble
-        chat_context.set_preamble(history)
+    chat_context.set_history(history)
 
     GPTShell(model, chat_context, args.save_history).cmdloop()
+
+
+def load_history(path):
+    try:
+        with open(path) as hist_file:
+            return hist_file.read()
+    except FileNotFoundError:
+        pass
+    return ''
 
 
 if __name__ == '__main__':
