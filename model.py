@@ -94,7 +94,10 @@ def entry():
             else:
                 print("\nresult:\n", file=sys.stderr)
                 break
-        print(model.generate_text('\n'.join(lines), max_new_tokens=args.max_new_tokens))
+        try:
+            print(model.generate_text('\n'.join(lines), max_new_tokens=args.max_new_tokens))
+        except RuntimeError as e:
+            print(e, file=sys.stderr)
         print('\n', file=sys.stderr)
 
 
