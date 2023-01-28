@@ -19,12 +19,36 @@ run the program with, `--model=EleutherAI/gpt-neo-1.3B`.
 
 ### Installation
 
+#### Simple Install Steps
+
+Linux or Mac:
+1. Install python 3.9
+2. Run the command:
+```
+pip3 install -r requirements.txt
+```
+
+Windows:
+1. Download and install Python 3.9 from python.org.
+At this time, nothing newer than 3.9 will work.
+2. Run the commands:
+```
+pip3 install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu117
+pip3 install transformers accelerate
+```
+
+#### Detailed Info
+
 The project depends on the following open-source packages:
 
 Python 3 - Available in popular package managers or directly from python.org.
 
 PyTorch - Installation instructions at pytorch.org.
-Select the CUDA 11.7 installation option.
+Select the CUDA 11.7 installation option and your preferred package management method.
+
+Additional required python libraries:
+ - transformers
+ - accelerate
 
 
 ### Running for the First Time
