@@ -60,10 +60,10 @@ class ChatContext:
 
     def set_history(self, path):
         new_history = load_history(path)
-        if not new_history.startswith(self.preamble):
-            print("WARNING: preamble differs from the given history file. Ignoring the supplied preamble.")
-
         if len(new_history) > 0:
+            if not new_history.startswith(self.preamble):
+                print("WARNING: preamble differs from the given history file. Ignoring the supplied preamble.")
+
             # Treat the whole prior history as an updated preamble
             self.set_preamble(new_history)
             self.history = []
