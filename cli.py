@@ -193,7 +193,13 @@ def entry():
     parser.add_argument('preamble', metavar='FILE',
                         help='path the preamble file')
     parser.add_argument('--cache-dir', metavar='PATH', help='model storage location. default: HOME/~.cache')
-    parser.add_argument('--model')
+    parser.add_argument('--8bit',
+                        default=False,
+                        dest='eight_bit',
+                        help='use half the memory by converting weights to 8-bit numbers.'
+                             'Requires the bitsandbytes library.',
+                        action='store_true')
+    parser.add_argument('--model', default="togethercomputer/GPT-JT-6B-v1")
     parser.add_argument('--username', metavar='NAME',
                         help='the name of the user which the bot will address')
     parser.add_argument('--botname', metavar='NAME', help='the bot\'s name')
@@ -215,7 +221,7 @@ def entry():
         history = load_history(args.save_history)
 
     import model
-    model = model.CausalModel(args.model, cache_dir=args.cache_dir)
+    model = model.CausalModel(args.model, cache_dir=args.cache_dir, eight_bit_mode=args.eight_bit)
     chat_context = ChatContext(preamble, model.chat_delimiter, args.username, args.botname, args.no_history)
 
     chat_context.set_history(history)
